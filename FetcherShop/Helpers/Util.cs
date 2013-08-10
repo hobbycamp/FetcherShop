@@ -61,8 +61,7 @@ namespace FetcherShop.Helpers
 
             // Replace the invalid file name chars with whitespace
             StringBuilder sb = new StringBuilder(name);
-            int i = 0;
-            for (i = 0; i < sb.Length; i++)
+            for (int i = 0; i < sb.Length; i++)
             {
                 if (Array.IndexOf(Util.INVALID_FILE_NAME_CHARS, sb[i]) != -1)
                 {
@@ -81,9 +80,9 @@ namespace FetcherShop.Helpers
                     func();
                     return;
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    Log(listeners, id, "Warning: {0}th {1} failed with exception {2}", i, actionName,  e);
+                    //Log(listeners, id, "Warning: {0}th {1} failed with exception {2}", i, actionName,  e);
                     if (i == (retryCount - 1))
                     {
                         throw;
@@ -109,7 +108,7 @@ namespace FetcherShop.Helpers
             if (!File.Exists(filePath))
                 return filePath;
             string filePathFormat = Path.Combine(dir, fileName + "{0}" + suffix);
-            int i = 0;
+            int i = 1;
             string filePath1 = "";
             do
             {
@@ -130,7 +129,6 @@ namespace FetcherShop.Helpers
             {
                 return "http://www6.mimima.com/fetch.php";
             }
-            
 
             return null; 
         }
@@ -164,7 +162,7 @@ namespace FetcherShop.Helpers
                 doc = new HtmlDocument();
                 doc.Load(stream, Encoding.GetEncoding("GB2312"));
                 resp.Close();
-            }, 0, listeners, 1, 20000);
+            }, 0, listeners, 2, 20000);
 
             return doc;
         }

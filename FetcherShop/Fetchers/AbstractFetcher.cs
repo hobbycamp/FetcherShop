@@ -16,20 +16,32 @@ namespace FetcherShop.Fetchers
     {
         private int numberOfItems = 0;
         private ManualResetEvent finished = new ManualResetEvent(false);
+        public List<LogListener> LogListeners { get; set; }
+        public Category Category { get; set; }
+        private LogThread logThread = null;
 
-        public void Fetch(WebSiteConfig siteConfig)
+        public AbstractFetcher(Category  category)
+        {
+            LogListeners = new List<LogListener>();
+            LogListeners.Add(new ConsoleLogListener());
+
+            Category = category;
+        }
+
+        protected void InitializeFileLogListener(WebSiteConfig siteConfig)
         {
             string logFile = Path.Combine(siteConfig.LogDirectory, Category.Keyword + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".txt");
+            // Initialize a central log items queue
             BlockingCollection<LogItem> queue = new BlockingCollection<LogItem>();
             LogListeners.Add(new FileLogListener(queue));
 
-            LogThread logThread = new LogThread(queue, logFile);
+            logThread = new LogThread(queue, logFile);
             logThread.StartLog();
-
-            //Anchor firstItem = GetFirstRecord(siteConfig.Url, Category);
-            //Category.LastestRecordUrl = Util.UrlCombine(siteConfig.Url, firstItem.Url);
-            //Log("First item {0} with url {1} for category {2}", firstItem.AnchorText, firstItem.Url, Category.Keyword);
-            //StartFetch(firstItem, siteConfig.Url, siteConfig.OutputDirectory, Category);
+        }
+        
+        public void Fetch(WebSiteConfig siteConfig)
+        {
+            InitializeFileLogListener(siteConfig);
             CategoryOutline outline = GetCategoryOutline(siteConfig.Url, Category);
             if (outline == null)
             {
@@ -53,22 +65,26 @@ namespace FetcherShop.Fetchers
                     {
                         if (anchor.Url != null)
                         {
+                            if (startAnchorId == 1)
+                            {
+                                Category.LastestRecordUrl = anchor.Url;
+                            }
                             anchor.Id = startAnchorId++;
+                            
                             ThreadPool.QueueUserWorkItem(new WaitCallback(MyWaitCallback), new ObjectState()
                             {
                                 anchor = anchor,
                                 outputDirectory = siteConfig.OutputDirectory,
                                 cat = Category,
                             });                            
-                            //FetchCategory1(anchor, siteConfig.OutputDirectory, Category);
                         }
                     }
                 }
             }
-
             finished.WaitOne();
             Log(0, "Finished category {0}", Category.Keyword);
-            queue.CompleteAdding();            
+
+            logThread.FinishLog();
         }
 
         public void MyWaitCallback(object state)
@@ -82,7 +98,7 @@ namespace FetcherShop.Fetchers
             {
                 if (Interlocked.Decrement(ref numberOfItems) == 0)
                 {
-                    Log(os.anchor.Id, "Finished all tasks");
+                    Log(0, "Finished all tasks for {0}", os.cat.Keyword);
                     finished.Set();
                 }
             }
@@ -117,16 +133,10 @@ namespace FetcherShop.Fetchers
         {
             try
             {
+                const string listXPath = "/html/body/div[contains(@class, 'main')]/div[@class='list']";
                 Log(0, "Begin getting all the urls of the page {0}", pageUrl);
-                HtmlDocument doc = null;
-
-                doc = Util.GetHtmlDocument(pageUrl, LogListeners);
-                if (doc == null)
-                {
-                    return null;
-                }
-
-                HtmlNode mainNode = doc.DocumentNode.SelectSingleNode("/html/body/div[contains(@class, 'main')]/div[@class='list']");
+                HtmlDocument doc = Util.GetHtmlDocument(pageUrl, LogListeners);
+                HtmlNode mainNode = doc.DocumentNode.SelectSingleNode(listXPath);
                 if (mainNode != null)
                 {
                     HtmlNodeCollection node = mainNode.SelectNodes(string.Format(".//a[contains(@href, '{0}')]", cat.Keyword));
@@ -135,17 +145,15 @@ namespace FetcherShop.Fetchers
                         {
                             AnchorText = n.InnerText,
                             Url = Util.UrlCombine(config.Url, n.GetAttributeValue("href", null))
-                        }
-                         );
+                        });
                     return result;
                 }
-                return null;
             }
             catch (Exception e)
             {
                 Log(0, "Exception occurred when getting items from the page {0}: {1}", pageUrl, e);
-                return null;
-            } 
+            }
+            return null;
         }
 
         /// <summary>
@@ -171,6 +179,12 @@ namespace FetcherShop.Fetchers
             return (siteUrl + outline.ListUrlPrefix + i + ".html");
         }
 
+        /// <summary>
+        /// Get the max number of pages and the list url of this category
+        /// </summary>
+        /// <param name="siteUrl"></param>
+        /// <param name="cat"></param>
+        /// <returns></returns>
         protected virtual CategoryOutline GetCategoryOutline(string siteUrl, Category cat)
         {
             if (!siteUrl.EndsWith("/"))
@@ -184,101 +198,48 @@ namespace FetcherShop.Fetchers
                 siteUrl += "/";
             }
             siteUrl += "index.html";
-            WebRequest req = WebRequest.Create(siteUrl);
-            WebResponse resp = req.GetResponse();
-
-            Stream resStream = resp.GetResponseStream();
-            HtmlDocument doc = new HtmlDocument();
-            doc.Load(resStream, Encoding.GetEncoding("GB2312"));
-            resp.Close();
-            HtmlNode mainNode = doc.DocumentNode.SelectSingleNode("/html/body/div[contains(@class, 'main')]");
-            if (mainNode == null)
+            const string mainDivXPath = "/html/body/div[contains(@class, 'main')]";
+            const string endPageXPath = ".//a[contains(text(), '末页')]";
+            try
             {
-                Log(0, "Main div element cound not be found");
-                return null;
-            }
+                HtmlDocument doc = Util.GetHtmlDocument(siteUrl, LogListeners);
+                HtmlNode mainNode = doc.DocumentNode.SelectSingleNode(mainDivXPath);
+                if (mainNode == null)
+                {
+                    throw new InvalidOperationException("Main div element cound not be found");
+                }
 
-            CategoryOutline outline = new CategoryOutline();
-            HtmlNode node = mainNode.SelectNodes(string.Format(".//a[contains(text(), '末页')]", cat.Keyword)).FirstOrDefault();
-            if (node == null)
-                return null;
-            string url = node.GetAttributeValue("href", null);
-            if (url == null)
-                return null;
+                CategoryOutline outline = new CategoryOutline();
+                HtmlNode node = mainNode.SelectNodes(endPageXPath).FirstOrDefault();
+                if (node == null)
+                {
+                    throw new InvalidOperationException("Can't find the end page number");
+                }
+                string url = node.GetAttributeValue("href", null);
+                if (url == null)
+                {
+                    throw new InvalidOperationException("The url of end page is null");
+                }
 
-            int lastDotIndex = url.LastIndexOf('.');
-            int lastDashIndex = url.LastIndexOf('_');
-            if (lastDashIndex >= (lastDotIndex - 1))
-                return null;
-            int number;
-            if(Int32.TryParse(url.Substring(lastDashIndex + 1, lastDotIndex - lastDashIndex - 1), out number))
-            {
+                int number;
+                int lastDotIndex = url.LastIndexOf('.');
+                int lastDashIndex = url.LastIndexOf('_');
+                if (lastDashIndex >= (lastDotIndex - 1) ||
+                   !Int32.TryParse(url.Substring(lastDashIndex + 1, lastDotIndex - lastDashIndex - 1), out number) )
+                {
+                    throw new InvalidOperationException(url + " is an invalid page url suffix");
+                }
+                
                 outline.TotalPageNumber = number;
                 outline.ListUrlPrefix = url.Substring(0, lastDashIndex + 1);
+                Log(0, "Category out line: {0}, {1}", outline.TotalPageNumber, outline.ListUrlPrefix);
                 return outline;
             }
+            catch (Exception e) 
+            {
+                Log(0, "Exception happened when fetching category outline {0}: {1}", cat, e);
+            }
             return null;
-        }
-
-        protected Anchor GetPreviousItemAnchor(HtmlNode node)
-        {
-            const string xpath = "/html/body/div[contains(@class, 'main')]/div[@class='pagea']";
-            HtmlNode pagea = node.SelectSingleNode(xpath);
-            if (pagea == null)
-            {
-                Log(0, "No pagea div found");
-                return null;
-            }
-
-            string innerXML = pagea.InnerText;
-            if (innerXML.Contains("上一篇：没有了"))
-            {
-                Log(0, "Last item hitted");
-                return null;
-            }
-
-            HtmlNode nd = pagea.SelectSingleNode("./a[1]");
-            return new Anchor()
-            {
-                Url = nd.GetAttributeValue("href", null),
-                AnchorText = nd.InnerText
-            };
-        }
-
-        //protected void StartFetch(Anchor anchor, string webSiteUrl, string outputDirectory, Category cat)
-        //{
-        //    while ((string.IsNullOrEmpty(cat.LastestRecordUrl)) || (anchor.Url != cat.LastestRecordUrl))
-        //    {
-        //        try
-        //        {
-        //            string latterUrl = anchor.Url;
-        //            Util.DoWithRetry("FetchCategory",
-        //                () =>
-        //                {
-        //                    anchor.Url = Util.UrlCombine(webSiteUrl, latterUrl);
-        //                    anchor = FetchCategory(anchor, outputDirectory, cat);
-        //                }, LogListeners);
-        //            if (anchor == null)
-        //                break;
-        //        }
-        //        catch (Exception e)
-        //        {
-        //            Log(0, "Failed to fetch content for {0} with url {1}. Exception: {2}", anchor.AnchorText, anchor.Url, e);
-        //            break;
-        //        }                
-        //    }
-
-        //    Log(0, "Fetch category {0} completed", cat.Keyword);
-        //}
-        
-        public List<LogListener> LogListeners { get; set; }
-        public Category Category { get; set; }
-
-        public AbstractFetcher(Category  category) {
-            LogListeners = new List<LogListener>();
-            LogListeners.Add(new ConsoleLogListener());
-
-            Category = category;
         }
 
         public void Log(int id, string format, params object[] args)
@@ -288,44 +249,6 @@ namespace FetcherShop.Fetchers
                 listener.Log(id, format, args);
             }
         }
-
-        Anchor GetFirstRecord(string siteUrl, Category cat)
-        {
-            if (!siteUrl.EndsWith("/"))
-            {
-                siteUrl += "/";
-            }
-
-            siteUrl += ("html/" + cat.Keyword);
-            if (!siteUrl.EndsWith("/"))
-            {
-                siteUrl += "/";
-            }
-            siteUrl += "index.html";
-            WebRequest req = WebRequest.Create(siteUrl);
-            WebResponse resp = req.GetResponse();
-
-            Stream resStream = resp.GetResponseStream();
-            HtmlDocument doc = new HtmlDocument();
-            doc.Load(resStream, Encoding.GetEncoding("GB2312"));
-
-            HtmlNode mainNode = doc.DocumentNode.SelectSingleNode("/html/body/div[contains(@class, 'main')]");
-            if (mainNode == null)
-            {
-                Log(0, "Main div element cound not be found");
-                return null;
-            }
-
-            HtmlNode node = mainNode.SelectNodes(string.Format(".//a[contains(@href, '{0}')]", cat.Keyword)).FirstOrDefault();
-            if (node == null)
-                return null;
-            resp.Close();
-            return new Anchor()
-            {
-                AnchorText = node.InnerText,
-                Url = node.GetAttributeValue("href", "")
-            };
-        }
         
         /// <summary>
         /// The template method of fetching the content of one page
@@ -333,77 +256,37 @@ namespace FetcherShop.Fetchers
         /// <param name="anchor"></param>
         /// <param name="doc"></param>
         /// <param name="destiDir"></param>
-        protected void FetchPageContentTemplate(Anchor anchor, HtmlDocument doc, string destiDir)
+        protected void FetchAnchorContentTemplate(Anchor anchor, HtmlDocument doc, string destiDir)
         {
             const string xpath = "/html/body/div[contains(@class, 'main')]/div[@class='content']";
             HtmlNode node = doc.DocumentNode.SelectSingleNode(xpath);
             if (node == null)
+            {
+                Log(anchor.Id, "Warning: content node can't be found");
                 return;
-
+            }
             if (node.InnerText.Length == 0)
             {
-                Log(anchor.Id, "Warning: Content empty, manually interferce needed");
+                Log(anchor.Id, "Warning: Content empty, manually interferce maybe needed");
                 return;
             }
-            FetchPageContent(anchor, node, destiDir);
+            FetchAnchorContent(anchor, node, destiDir);
         }
 
-        protected virtual void FetchPageContent(Anchor anchor, HtmlNode node, string destiDir)
+        protected virtual void FetchAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
         {
-            string filePath = GetFilePath(destiDir, anchor.AnchorText);
-            Log(anchor.Id, "Write text file {0} with url {1}", filePath, anchor.Url);
-            FetchText(filePath, node, anchor);
-        }
-
-        protected Anchor FetchCategory(Anchor anchor, string outputDirectory, Category cat)
-        {
-            WebRequest req = WebRequest.Create(anchor.Url);
-            WebResponse resp = req.GetResponse();
-            Stream stream = resp.GetResponseStream();
-
-            HtmlDocument doc = new HtmlDocument();
-            doc.Load(stream, Encoding.GetEncoding("GB2312"));
-            resp.Close();
-            bool filterMatch = false;
-            foreach (Filter filter in cat.Filters)
+            try
             {
-                // Assume output directory exists already
-                string destiDir = Path.Combine(outputDirectory, filter.Accept);
-                if (!Directory.Exists(destiDir))
-                {
-                    Log(anchor.Id, "Create directory {0} for category {1} filter {2}", destiDir, cat.Keyword, filter.Accept);
-                    Directory.CreateDirectory(destiDir);
-                }
-                string[] keywords = filter.Accept.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                bool flag = false;
-                foreach (string keyword in keywords)
-                {
-                    if (anchor.AnchorText.IndexOf(keyword, StringComparison.CurrentCultureIgnoreCase) != -1)
-                    {
-                        flag = true;
-                        filterMatch = true;
-                        break;
-                    }
-                }
-
-                if (flag)
-                {
-                    FetchPageContentTemplate(anchor, doc, destiDir); 
-                }
+                string filePath = GetFilePath(destiDir, anchor.AnchorText);
+                Log(anchor.Id, "Write text file {0} with url {1}", filePath, anchor.Url);
+                FetchText(filePath, node, anchor);
             }
-            if (!filterMatch)
+            catch (Exception e)
             {
-                string destiDir = Path.Combine(outputDirectory, "others");
-                if (!Directory.Exists(destiDir))
-                {
-                    Log(anchor.Id, "Create directory {0} for category {1} filter {2}", destiDir, cat.Keyword, "others");
-                    Directory.CreateDirectory(destiDir);
-                }
-                FetchPageContentTemplate(anchor, doc, destiDir);
+                Log(anchor.Id, "Fetch text file with url {0}: {1}", anchor.Url, e); 
             }
-            return GetPreviousItemAnchor(doc.DocumentNode);
         }
-
+        
         /// <summary>
         /// Start to fetch an anchor
         /// </summary>
@@ -450,12 +333,12 @@ namespace FetcherShop.Fetchers
                         Log(anchor.Id, "Create directory {0} for category {1} filter {2}", destiDir, cat.Keyword, "others");
                         Directory.CreateDirectory(destiDir);
                     }
-                    FetchPageContentTemplate(anchor, doc, destiDir);
+                    FetchAnchorContentTemplate(anchor, doc, destiDir);
                 }
             }
             catch (Exception e)
             {
-                Log(anchor.Id, "Exception occurred when fetching {0}: {1}", anchor.Url, e);
+                Log(anchor.Id, "[Error] Exception occurred when fetching {0}: {1}", anchor.Url, e);
             }
         }
 
@@ -485,7 +368,7 @@ namespace FetcherShop.Fetchers
             FileInfo info = new FileInfo(filePath);
             if (info.Length == 0)
             {
-                Log(anchor.Id, "Warning: {0} empty for {1}", anchor.AnchorText, anchor.Url);
+                Log(anchor.Id, "Literature Warning: {0} empty for {1}", anchor.AnchorText, anchor.Url);
             }
         }
 
@@ -511,5 +394,4 @@ namespace FetcherShop.Fetchers
             return Util.GetNewFilePath(dir, anchorText, ".txt");
         }
     }
-
 }

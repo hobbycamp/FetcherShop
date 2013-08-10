@@ -9,6 +9,5 @@ namespace FetcherShop
     {
         public string ListUrlPrefix { get; set; }
         public int TotalPageNumber { get; set; }
-
     }
 }

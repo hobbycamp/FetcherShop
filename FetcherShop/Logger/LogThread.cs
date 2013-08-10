@@ -72,6 +72,11 @@ namespace FetcherShop.Logger
             myThread.Start();
         }
 
+        public void FinishLog()
+        {
+            LogsQueue.CompleteAdding();
+        }
+
         private void UpdateSeeks(long currentSeekPosition, int length, int excludedId)
         {
             foreach (var key in Seeks.Keys.ToList())

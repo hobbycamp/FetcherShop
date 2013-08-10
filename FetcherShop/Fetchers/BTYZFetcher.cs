@@ -17,13 +17,12 @@ namespace FetcherShop.Fetchers
         private static string sContentType =
                 "multipart/form-data; boundary=---------------------------7dd731a807a4";
         private static string sRequestEncoding = "ascii";
-        //private static string sResponseEncoding = "gb2312";
 
         public BTYZFetcher(Category category)
             : base(category)
         { }
 
-        protected override void FetchPageContent(Anchor anchor, HtmlNode node, string destiDir)
+        protected override void FetchAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
         {
             destiDir = Path.Combine(destiDir, Util.FilterEntryName(anchor.AnchorText));
             if (!Directory.Exists(destiDir))
@@ -32,7 +31,7 @@ namespace FetcherShop.Fetchers
                 Directory.CreateDirectory(destiDir);
             }
 
-            base.FetchPageContent(anchor, node, destiDir);
+            base.FetchAnchorContent(anchor, node, destiDir);
 
             FetchImageContent(anchor, node, destiDir);
 
@@ -49,7 +48,10 @@ namespace FetcherShop.Fetchers
                     if (imageSrcUrl != null)
                     { 
                         string imageFileName = Util.GetRemoteFileName(imageSrcUrl);
-                        DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, GetFilePath1(destiDir, imageFileName));
+                        if (imageFileName != null)
+                        {
+                            DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, GetFilePath1(destiDir, imageFileName));
+                        }
                     }
                 }
             }   
@@ -68,7 +70,7 @@ namespace FetcherShop.Fetchers
                     );
             } catch (Exception e)
             {
-                Log(anchor.Id, "Erroring: Downloading image file of {0} failed with exception {1}", anchor.Url, e.ToString());
+                Log(anchor.Id, "Error: Downloading image file of {0} failed with exception {1}", anchor.Url, e.ToString());
             }
         }
 
@@ -79,7 +81,6 @@ namespace FetcherShop.Fetchers
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
                 using (var response = (HttpWebResponse)request.GetResponse())
                 {
-
                     // Check that the remote file was found. The ContentType
                     // check is performed since a request for a non-existent
                     // image file might be redirected to a 404-page, which would
@@ -91,7 +92,7 @@ namespace FetcherShop.Fetchers
                         //&& response.ContentType.StartsWith("image", StringComparison.OrdinalIgnoreCase)
                         )
                     {
-                        // if the remote file was found, download oit
+                        // if the remote file was found, download it
                         using (Stream inputStream = response.GetResponseStream())
                         {
                             using (Stream outputStream = File.OpenWrite(fileName))
@@ -135,7 +136,7 @@ namespace FetcherShop.Fetchers
                 return null; ;
             }
             string filePathFormat = Path.Combine(dir, fileNameFormat);
-            int i = 0;
+            int i = 1;
             string filePath1 = "";
             do
             {
@@ -194,7 +195,7 @@ namespace FetcherShop.Fetchers
             }
             catch (Exception e)
             {
-                Log(anchor.Id, "Warning: Downloading torrent file of {0} failed with exception {1}", anchor.Url, e.ToString());
+                Log(anchor.Id, "Error: Downloading torrent file of {0} failed with exception {1}", anchor.Url, e.ToString());
             }
         }
 
@@ -229,43 +230,44 @@ namespace FetcherShop.Fetchers
 
         private void PostDataToUrl(byte[] data, string url, string refererUrl, Anchor anchor, string destiDir)
         {
-            WebRequest webRequest = WebRequest.Create(url);
-            HttpWebRequest httpRequest = webRequest as HttpWebRequest;
-            if (httpRequest == null)
-            {
-                throw new Exception(
-                    string.Format("Invalid url string: {0}", url)
-                );
-            }
- 
-            httpRequest.UserAgent = sUserAgent;
-            httpRequest.ContentType = sContentType;            
-            httpRequest.Method = "POST";
-            httpRequest.Referer = refererUrl;
- 
-            // Fill the content of post data
-            httpRequest.ContentLength = data.Length;
-            Stream requestStream = httpRequest.GetRequestStream();
-            requestStream.Write(data, 0, data.Length);
-            requestStream.Close();
- 
-            // Get the response
-            Stream responseStream = null;
             try
             {
+                WebRequest webRequest = WebRequest.Create(url);
+                HttpWebRequest httpRequest = webRequest as HttpWebRequest;
+                if (httpRequest == null)
+                {
+                    throw new Exception(
+                        string.Format("Invalid url string: {0}", url)
+                    );
+                }
+
+                httpRequest.UserAgent = sUserAgent;
+                httpRequest.ContentType = sContentType;
+                httpRequest.Method = "POST";
+                httpRequest.Referer = refererUrl;
+
+                // Fill the content of post data
+                httpRequest.ContentLength = data.Length;
+                Stream requestStream = httpRequest.GetRequestStream();
+                requestStream.Write(data, 0, data.Length);
+                requestStream.Close();
+
+                // Get the response
                 string fileEntry = Util.FilterEntryName(anchor.AnchorText);
                 string fileName = Util.GetNewFilePath(destiDir, fileEntry, ".torrent");
 
-                responseStream = httpRequest.GetResponse().GetResponseStream();
-                using (Stream outputStream = File.OpenWrite(fileName))
+                using (var responseStream = httpRequest.GetResponse().GetResponseStream())
                 {
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-                    do
+                    using (Stream outputStream = File.OpenWrite(fileName))
                     {
-                        bytesRead = responseStream.Read(buffer, 0, buffer.Length);
-                        outputStream.Write(buffer, 0, bytesRead);
-                    } while (bytesRead != 0);
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        do
+                        {
+                            bytesRead = responseStream.Read(buffer, 0, buffer.Length);
+                            outputStream.Write(buffer, 0, bytesRead);
+                        } while (bytesRead != 0);
+                    }
                 }
 
                 Log(anchor.Id, "Finish writing torrent file {0}", fileName);
@@ -273,14 +275,8 @@ namespace FetcherShop.Fetchers
             catch (Exception e)
             {
                 // log error
-                Log(anchor.Id, "POST operation occurs exceptions：{0}", e.Message);
-                throw e;
-            }
-            finally
-            {
-                if (responseStream != null)
-                    responseStream.Close();
-            }
+                Log(anchor.Id, "POST operation occurs exceptions：{0}", e);
+            }            
         }
     }
 }

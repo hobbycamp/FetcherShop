@@ -1,40 +1,15 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
-<WebSiteConfig>
-    <Url>http://780pp.com</Url>
-    <Categories>
-        <!--<Category>
-            <Keyword>jiatingluanlun</Keyword>
-            <LastestRecordUrl></LastestRecordUrl>
-            <Filters>
-                <Filter>
-                    <Accept>妈 母 娘</Accept>
-                    <Deny></Deny>
-                </Filter>
-                <Filter>
-                    <Accept>老婆 妻 娘子 妇</Accept>
-                    <Deny></Deny>
-                </Filter>
-                <Filter>
-                    <Accept>姑 姨 婶 嫂 舅 姐 妹 公</Accept>
-                    <Deny></Deny>
-                </Filter>
-                <Filter>
-                    <Accept>乱 伦 家 集 淫 荡</Accept>
-                </Filter>
-            </Filters>
-        </Category>-->
-        <Category>
-            <!--<Keyword>btyazhouqu</Keyword>-->
-            <Keyword>btdongmanqu</Keyword>
-            <LastestRecordUrl></LastestRecordUrl>
-            <Filters>
-                <Filter>
-                    <!--<Accept>妈 子 娘 家 水 妹 姐 奶 妻 婆 公 乱 交</Accept>
-                    <Deny></Deny>-->
-                </Filter>                
-            </Filters>
-        </Category>
-    </Categories>
-    <OutputDirectory>D:\Downloads\comic</OutputDirectory>
-    <LogDirectory>D:\Downloads\comic</LogDirectory>
+<?xml version="1.0"?>
+<WebSiteConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Url>http://780pp.com</Url>
+  <Categories>
+    <Category>
+      <Keyword>btoumeiqu</Keyword>
+      <LastestRecordUrl>http://780pp.com/html/btoumeiqu/0P92531P2013.html</LastestRecordUrl>
+      <Filters>
+        <Filter />
+      </Filters>
+    </Category>
+  </Categories>
+  <OutputDirectory>D:\Downloads\btoumeiqu</OutputDirectory>
+  <LogDirectory>D:\Downloads\btoumeiqu</LogDirectory>
 </WebSiteConfig>

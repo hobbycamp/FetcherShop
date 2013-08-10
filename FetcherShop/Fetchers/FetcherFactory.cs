@@ -13,8 +13,15 @@ namespace FetcherShop.Fetchers
             {
                 return new JTLLFetcher(category);
             }
-            else if (string.Compare(category.Keyword, "btyazhouqu", true) == 0
-                || string.Compare(category.Keyword, "btdongmanqu", true) == 0)
+            else if (string.Compare(category.Keyword, "btyazhouqu", true) == 0)
+            {
+                return new BTYZFetcher(category);
+            }
+            else if (string.Compare(category.Keyword, "btdongmanqu", true) == 0)
+            {
+                return new BTYZFetcher(category);
+            }
+            else if (string.Compare(category.Keyword, "btoumeiqu", true) == 0)
             {
                 return new BTYZFetcher(category);
             }
