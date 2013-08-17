@@ -102,11 +102,14 @@ namespace FetcherShop.Helpers
             } 
         }
 
-        public static string GetNewFilePath(string dir, string fileName, string suffix)
+        public static string GetNewFilePath(string dir, string fileName, string suffix, out bool isExisted)
         {
             string filePath = Path.Combine(dir, fileName + suffix);
             if (!File.Exists(filePath))
+            {
+                isExisted = false;
                 return filePath;
+            }
             string filePathFormat = Path.Combine(dir, fileName + "{0}" + suffix);
             int i = 1;
             string filePath1 = "";
@@ -115,7 +118,7 @@ namespace FetcherShop.Helpers
                 filePath1 = string.Format(filePathFormat, i++);
 
             } while (File.Exists(filePath1));
-
+            isExisted = true;
             return filePath1;
         }
 

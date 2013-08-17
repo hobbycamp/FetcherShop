@@ -20,6 +20,8 @@ namespace FetcherShop
     public class Category
     {
         public string Keyword { get; set; }
+        public bool Replay { get; set; }
+        public bool Overrite { get; set; }
         public string LastestRecordUrl { get; set; }
         [XmlArray("Filters")]
         public Filter[] Filters { get; set; }

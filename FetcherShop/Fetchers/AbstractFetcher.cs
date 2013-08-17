@@ -51,7 +51,7 @@ namespace FetcherShop.Fetchers
 
             int startAnchorId = 1;
             bool hitLastRecord = false;
-            for (int i = 1; i <= outline.TotalPageNumber && !hitLastRecord; i++)
+            for (int i = 1; i <= outline.TotalPageNumber && (!hitLastRecord || Category.Replay); i++)
             {
                 string url = GetPageUrl(siteConfig.Url, outline, Category, i);
                 // Fetch all the items in this page.
@@ -391,7 +391,8 @@ namespace FetcherShop.Fetchers
         {
             // Replace the invalid file name chars with whitespace
             anchorText = Util.FilterEntryName(anchorText);
-            return Util.GetNewFilePath(dir, anchorText, ".txt");
+            bool isExisted;
+            return Util.GetNewFilePath(dir, anchorText, ".txt", out isExisted);
         }
     }
 }

@@ -50,7 +50,12 @@ namespace FetcherShop.Fetchers
                         string imageFileName = Util.GetRemoteFileName(imageSrcUrl);
                         if (imageFileName != null)
                         {
-                            DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, GetFilePath1(destiDir, imageFileName));
+                            bool isExisted;
+                            string imageFilePath = GetFilePath1(destiDir, imageFileName, out isExisted);
+                            if (Category.Overrite || !isExisted)
+                            {
+                                DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
+                            }
                         }
                     }
                 }
@@ -122,18 +127,22 @@ namespace FetcherShop.Fetchers
             }
         }
 
-        protected string GetFilePath1(string dir, string imageFileName)
+        protected string GetFilePath1(string dir, string imageFileName, out bool isExisted)
         {
             imageFileName = Util.FilterEntryName(imageFileName);
             string filePath = Path.Combine(dir, imageFileName);
             if (!File.Exists(filePath))
+            {
+                isExisted = false;
                 return filePath;
+            }
 
             string fileNameFormat = GetFileNameFormat(imageFileName);
             if (fileNameFormat == null)
             {
                 //Log("Warning: {0} is an invalid image file name", imageFileName);
-                return null; ;
+                isExisted = false;
+                return null;
             }
             string filePathFormat = Path.Combine(dir, fileNameFormat);
             int i = 1;
@@ -143,7 +152,7 @@ namespace FetcherShop.Fetchers
                 filePath1 = string.Format(filePathFormat, i++);
 
             } while (File.Exists(filePath1));
-
+            isExisted = true;
             return filePath1;
         }
 
@@ -171,7 +180,13 @@ namespace FetcherShop.Fetchers
                     string hrefUrl = n.GetAttributeValue("href", null);
                     if (hrefUrl != null)
                     {
-                        DownloadTorrentWithRetry(anchor, hrefUrl, destiDir);
+                        bool isExisted;
+                        string fileEntry = Util.FilterEntryName(anchor.AnchorText);
+                        string fileName = Util.GetNewFilePath(destiDir, fileEntry, ".torrent", out isExisted);
+                        if (Category.Overrite || !isExisted)
+                        {
+                            DownloadTorrentWithRetry(anchor, hrefUrl, destiDir, fileName);
+                        }
                     }
                 }
             }
@@ -181,12 +196,12 @@ namespace FetcherShop.Fetchers
             }
         }
 
-        private void DownloadTorrentWithRetry(Anchor anchor, string hrefUrl, string destiDir)
+        private void DownloadTorrentWithRetry(Anchor anchor, string hrefUrl, string destiDir, string fileName)
         {
             try
             {
                 Util.DoWithRetry("DownloadTorrent",
-                    () => { DownloadTorrent(anchor, Util.GetDownloadUrl(hrefUrl), hrefUrl, destiDir); },
+                    () => { DownloadTorrent(anchor, Util.GetDownloadUrl(hrefUrl), hrefUrl, destiDir, fileName); },
                     anchor.Id,
                     LogListeners,
                     3,
@@ -213,11 +228,11 @@ namespace FetcherShop.Fetchers
             return sb.ToString();
         }
 
-        private void DownloadTorrent(Anchor anchor, string downloadUrl, string hrefUrl, string destiDir)
+        private void DownloadTorrent(Anchor anchor, string downloadUrl, string hrefUrl, string destiDir, string fileName)
         {
             if (string.IsNullOrEmpty(downloadUrl))
             {
-                Log(anchor.Id, "Error: download url is null or empty for {0} {1}", anchor.Url, anchor.AnchorText);
+                Log(anchor.Id, "Error: downloading url is null or empty for {0} {1}", anchor.Url, anchor.AnchorText);
                 return;
             }
             Encoding encoding = Encoding.GetEncoding(sRequestEncoding);
@@ -225,58 +240,51 @@ namespace FetcherShop.Fetchers
             int index = hrefUrl.IndexOf(mark);
             string code = hrefUrl.Substring(index + mark.Length);
             byte[] bytesToPost = encoding.GetBytes(BodyString(code));
-            PostDataToUrl(bytesToPost, downloadUrl, hrefUrl, anchor, destiDir);
+            PostDataToUrl(bytesToPost, downloadUrl, hrefUrl, anchor, destiDir, fileName);
         }
 
-        private void PostDataToUrl(byte[] data, string url, string refererUrl, Anchor anchor, string destiDir)
+        private void PostDataToUrl(byte[] data, string url, string refererUrl, Anchor anchor, string destiDir, string fileName)
         {
-            try
+            // Gets or sets the time-out value in milliseconds for the System.Net.HttpWebRequest.GetResponse()
+            // and System.Net.HttpWebRequest.GetRequestStream() methods.
+            const int TIME_OUT = 300000;
+            WebRequest webRequest = WebRequest.Create(url);
+            HttpWebRequest httpRequest = webRequest as HttpWebRequest;
+            if (httpRequest == null)
             {
-                WebRequest webRequest = WebRequest.Create(url);
-                HttpWebRequest httpRequest = webRequest as HttpWebRequest;
-                if (httpRequest == null)
-                {
-                    throw new Exception(
-                        string.Format("Invalid url string: {0}", url)
-                    );
-                }
-
-                httpRequest.UserAgent = sUserAgent;
-                httpRequest.ContentType = sContentType;
-                httpRequest.Method = "POST";
-                httpRequest.Referer = refererUrl;
-
-                // Fill the content of post data
-                httpRequest.ContentLength = data.Length;
-                Stream requestStream = httpRequest.GetRequestStream();
-                requestStream.Write(data, 0, data.Length);
-                requestStream.Close();
-
-                // Get the response
-                string fileEntry = Util.FilterEntryName(anchor.AnchorText);
-                string fileName = Util.GetNewFilePath(destiDir, fileEntry, ".torrent");
-
-                using (var responseStream = httpRequest.GetResponse().GetResponseStream())
-                {
-                    using (Stream outputStream = File.OpenWrite(fileName))
-                    {
-                        byte[] buffer = new byte[8192];
-                        int bytesRead;
-                        do
-                        {
-                            bytesRead = responseStream.Read(buffer, 0, buffer.Length);
-                            outputStream.Write(buffer, 0, bytesRead);
-                        } while (bytesRead != 0);
-                    }
-                }
-
-                Log(anchor.Id, "Finish writing torrent file {0}", fileName);
+                throw new InvalidOperationException(
+                    string.Format("Invalid url string: {0}", url)
+                );
             }
-            catch (Exception e)
+
+            httpRequest.UserAgent = sUserAgent;
+            httpRequest.ContentType = sContentType;
+            httpRequest.Method = "POST";
+            httpRequest.Referer = refererUrl;
+            httpRequest.Timeout = TIME_OUT;
+
+            // Fill the content of post data
+            httpRequest.ContentLength = data.Length;
+            Stream requestStream = httpRequest.GetRequestStream();
+            requestStream.Write(data, 0, data.Length);
+            requestStream.Close();
+
+            // Get the response
+            using (var responseStream = httpRequest.GetResponse().GetResponseStream())
             {
-                // log error
-                Log(anchor.Id, "POST operation occurs exceptions：{0}", e);
-            }            
+                using (Stream outputStream = File.OpenWrite(fileName))
+                {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    do
+                    {
+                        bytesRead = responseStream.Read(buffer, 0, buffer.Length);
+                        outputStream.Write(buffer, 0, bytesRead);
+                    } while (bytesRead != 0);
+                }
+            }
+
+            Log(anchor.Id, "Finish writing torrent file {0}", fileName);
         }
     }
 }
