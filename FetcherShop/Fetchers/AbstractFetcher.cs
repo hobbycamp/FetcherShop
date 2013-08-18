@@ -45,7 +45,7 @@ namespace FetcherShop.Fetchers
             CategoryOutline outline = GetCategoryOutline(siteConfig.Url, Category);
             if (outline == null)
             {
-                Log(0, "[Crash] Failed to get the outline information of category {0}", Category.Keyword);
+                Log(LogLevel.Error, 0, "[Crash] Failed to get the outline information of category {0}", Category.Keyword);
                 return;
             }
 
@@ -59,7 +59,7 @@ namespace FetcherShop.Fetchers
                 if (allItems != null)
                 {
                     hitLastRecord = IsHitLastRecord(allItems, Category);
-                    Log(0, "Number of items is {0} for {1}", allItems.Count(), url);
+                    Log(LogLevel.Information, 0, "Number of items is {0} for {1}", allItems.Count(), url);
                     Interlocked.Add(ref numberOfItems, allItems.Count());
                     foreach (Anchor anchor in allItems)
                     {
@@ -82,7 +82,7 @@ namespace FetcherShop.Fetchers
                 }
             }
             finished.WaitOne();
-            Log(0, "Finished category {0}", Category.Keyword);
+            Log(LogLevel.Information, 0, "Finished category {0}", Category.Keyword);
 
             logThread.FinishLog();
         }
@@ -98,7 +98,7 @@ namespace FetcherShop.Fetchers
             {
                 if (Interlocked.Decrement(ref numberOfItems) == 0)
                 {
-                    Log(0, "Finished all tasks for {0}", os.cat.Keyword);
+                    Log(LogLevel.Information, 0, "Finished all tasks for {0}", os.cat.Keyword);
                     finished.Set();
                 }
             }
@@ -134,7 +134,7 @@ namespace FetcherShop.Fetchers
             try
             {
                 const string listXPath = "/html/body/div[contains(@class, 'main')]/div[@class='list']";
-                Log(0, "Begin getting all the urls of the page {0}", pageUrl);
+                Log(LogLevel.Information, 0, "Begin getting all the urls of the page {0}", pageUrl);
                 HtmlDocument doc = Util.GetHtmlDocument(pageUrl, LogListeners);
                 HtmlNode mainNode = doc.DocumentNode.SelectSingleNode(listXPath);
                 if (mainNode != null)
@@ -151,7 +151,7 @@ namespace FetcherShop.Fetchers
             }
             catch (Exception e)
             {
-                Log(0, "Exception occurred when getting items from the page {0}: {1}", pageUrl, e);
+                Log(LogLevel.Error, 0, "Exception occurred when getting items from the page {0}: {1}", pageUrl, e);
             }
             return null;
         }
@@ -232,21 +232,21 @@ namespace FetcherShop.Fetchers
                 
                 outline.TotalPageNumber = number;
                 outline.ListUrlPrefix = url.Substring(0, lastDashIndex + 1);
-                Log(0, "Category out line: {0}, {1}", outline.TotalPageNumber, outline.ListUrlPrefix);
+                Log(LogLevel.Information, 0, "Category out line: {0}, {1}", outline.TotalPageNumber, outline.ListUrlPrefix);
                 return outline;
             }
             catch (Exception e) 
             {
-                Log(0, "Exception happened when fetching category outline {0}: {1}", cat, e);
+                Log(LogLevel.Error, 0, "Exception happened when fetching category outline {0}: {1}", cat, e);
             }
             return null;
         }
 
-        public void Log(int id, string format, params object[] args)
+        public void Log(LogLevel logLevel, int id, string format, params object[] args)
         {
             foreach (LogListener listener in LogListeners)
             {
-                listener.Log(id, format, args);
+                listener.Log(logLevel, id, format, args);
             }
         }
         
@@ -262,12 +262,12 @@ namespace FetcherShop.Fetchers
             HtmlNode node = doc.DocumentNode.SelectSingleNode(xpath);
             if (node == null)
             {
-                Log(anchor.Id, "Warning: content node can't be found");
+                Log(LogLevel.Warning, anchor.Id, "Warning: content node can't be found");
                 return;
             }
             if (node.InnerText.Length == 0)
             {
-                Log(anchor.Id, "Warning: Content empty, manually interferce maybe needed");
+                Log(LogLevel.Warning, anchor.Id, "Warning: Content empty, manually interferce maybe needed");
                 return;
             }
             FetchAnchorContent(anchor, node, destiDir);
@@ -277,13 +277,17 @@ namespace FetcherShop.Fetchers
         {
             try
             {
-                string filePath = GetFilePath(destiDir, anchor.AnchorText);
-                Log(anchor.Id, "Write text file {0} with url {1}", filePath, anchor.Url);
-                FetchText(filePath, node, anchor);
+                bool isExisted;
+                string filePath = GetFilePath(destiDir, anchor.AnchorText, out isExisted);
+                if (Category.Overrite || !isExisted)
+                {
+                    Log(LogLevel.Information, anchor.Id, "Write text file {0} with url {1}", filePath, anchor.Url);
+                    FetchText(filePath, node, anchor);
+                }
             }
             catch (Exception e)
             {
-                Log(anchor.Id, "Fetch text file with url {0}: {1}", anchor.Url, e); 
+                Log(LogLevel.Error, anchor.Id, "Exception: Fetch text file with url {0}: {1}", anchor.Url, e); 
             }
         }
         
@@ -330,7 +334,7 @@ namespace FetcherShop.Fetchers
                     string destiDir = Path.Combine(outputDirectory, "others");
                     if (!Directory.Exists(destiDir))
                     {
-                        Log(anchor.Id, "Create directory {0} for category {1} filter {2}", destiDir, cat.Keyword, "others");
+                        Log(LogLevel.Information, anchor.Id, "Create directory {0} for category {1} filter {2}", destiDir, cat.Keyword, "others");
                         Directory.CreateDirectory(destiDir);
                     }
                     FetchAnchorContentTemplate(anchor, doc, destiDir);
@@ -338,7 +342,7 @@ namespace FetcherShop.Fetchers
             }
             catch (Exception e)
             {
-                Log(anchor.Id, "[Error] Exception occurred when fetching {0}: {1}", anchor.Url, e);
+                Log(LogLevel.Error, anchor.Id, "[Error] Exception occurred when fetching {0}: {1}", anchor.Url, e);
             }
         }
 
@@ -368,7 +372,7 @@ namespace FetcherShop.Fetchers
             FileInfo info = new FileInfo(filePath);
             if (info.Length == 0)
             {
-                Log(anchor.Id, "Literature Warning: {0} empty for {1}", anchor.AnchorText, anchor.Url);
+                Log(LogLevel.Warning, anchor.Id, "Literature Warning: {0} empty for {1}", anchor.AnchorText, anchor.Url);
             }
         }
 
@@ -387,11 +391,10 @@ namespace FetcherShop.Fetchers
             }
         }
 
-        protected virtual string GetFilePath(string dir, string anchorText)
+        protected virtual string GetFilePath(string dir, string anchorText, out bool isExisted)
         {
             // Replace the invalid file name chars with whitespace
             anchorText = Util.FilterEntryName(anchorText);
-            bool isExisted;
             return Util.GetNewFilePath(dir, anchorText, ".txt", out isExisted);
         }
     }

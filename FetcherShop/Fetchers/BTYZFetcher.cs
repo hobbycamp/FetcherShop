@@ -6,6 +6,7 @@ using System.Net;
 using System.IO;
 using HtmlAgilityPack;
 using FetcherShop.Helpers;
+using FetcherShop.Logger;
 
 namespace FetcherShop.Fetchers
 {
@@ -27,7 +28,7 @@ namespace FetcherShop.Fetchers
             destiDir = Path.Combine(destiDir, Util.FilterEntryName(anchor.AnchorText));
             if (!Directory.Exists(destiDir))
             {
-                Log(anchor.Id, "Create directory {0} for {1}", destiDir, Category.Keyword);
+                Log(LogLevel.Information, anchor.Id, "Create directory {0} for {1}", destiDir, Category.Keyword);
                 Directory.CreateDirectory(destiDir);
             }
 
@@ -65,55 +66,85 @@ namespace FetcherShop.Fetchers
         private void DownloadRemoteImageFileWithRetry(Anchor anchor, string uri, string fileName)
         {
             try {
-                Log(anchor.Id, "Begin downloading remote image file {0}", uri);
-                Util.DoWithRetry("DownloadRemoteImageFile",
-                    () => { DownloadRemoteImageFile(anchor, uri, fileName); },
-                    anchor.Id,
-                    LogListeners,
-                    3,
-                    5000
-                    );
+                Log(LogLevel.Information, anchor.Id, "Begin downloading remote image file {0}", uri);
+                // Try download the image file for the first time to clarify the exception type if there is
+                WebException exp = null;
+                bool isUseProxy = false;
+                try
+                {
+                    DownloadRemoteImageFile(anchor, uri, fileName, isUseProxy);
+                }
+                catch (WebException webExp)
+                {
+                    exp = webExp;
+                    if (webExp.Response != null)
+                    {
+                        if (((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.Forbidden ||
+                            ((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.InternalServerError)
+                        {
+                            isUseProxy = true; 
+                        }
+                    }
+                }
+                if (exp != null)
+                {
+                    Util.DoWithRetry("DownloadRemoteImageFile",
+                        () => { DownloadRemoteImageFile(anchor, uri, fileName, isUseProxy); },
+                        anchor.Id,
+                        LogListeners,
+                        3,
+                        5000
+                        );
+                }
             } catch (Exception e)
             {
-                Log(anchor.Id, "Error: Downloading image file of {0} failed with exception {1}", anchor.Url, e.ToString());
+                Log(LogLevel.ImageError, anchor.Id, "Error: Downloading image file {0} of {1} failed with exception {2}", uri, anchor.Url, e.ToString());
             }
         }
 
-        private void DownloadRemoteImageFile(Anchor anchor, string uri, string fileName)
+        private void DownloadRemoteImageFile(Anchor anchor, string uri, string fileName, bool isUseProxy)
         {
             try
             {
-                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
-                using (var response = (HttpWebResponse)request.GetResponse())
+                //HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
+                //using (var response = (HttpWebResponse)request.GetResponse())
+                //{
+                //    // Check that the remote file was found. The ContentType
+                //    // check is performed since a request for a non-existent
+                //    // image file might be redirected to a 404-page, which would
+                //    // yield the StatusCode "OK", even though the image was not
+                //    // found.
+                //    if ((response.StatusCode == HttpStatusCode.OK ||
+                //        response.StatusCode == HttpStatusCode.Moved ||
+                //        response.StatusCode == HttpStatusCode.Redirect)
+                //        //&& response.ContentType.StartsWith("image", StringComparison.OrdinalIgnoreCase)
+                //        )
+                //    {
+                //        // if the remote file was found, download it
+                //        using (Stream inputStream = response.GetResponseStream())
+                //        {
+                //            using (Stream outputStream = File.OpenWrite(fileName))
+                //            {
+                //                byte[] buffer = new byte[8192];
+                //                int bytesRead;
+                //                do
+                //                {
+                //                    bytesRead = inputStream.Read(buffer, 0, buffer.Length);
+                //                    outputStream.Write(buffer, 0, bytesRead);
+                //                } while (bytesRead != 0);
+                //            }
+                //        }
+                //        Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
+                //    }
+                //}
+                MyWebClient w = new MyWebClient();
+                if (isUseProxy)
                 {
-                    // Check that the remote file was found. The ContentType
-                    // check is performed since a request for a non-existent
-                    // image file might be redirected to a 404-page, which would
-                    // yield the StatusCode "OK", even though the image was not
-                    // found.
-                    if ((response.StatusCode == HttpStatusCode.OK ||
-                        response.StatusCode == HttpStatusCode.Moved ||
-                        response.StatusCode == HttpStatusCode.Redirect)
-                        //&& response.ContentType.StartsWith("image", StringComparison.OrdinalIgnoreCase)
-                        )
-                    {
-                        // if the remote file was found, download it
-                        using (Stream inputStream = response.GetResponseStream())
-                        {
-                            using (Stream outputStream = File.OpenWrite(fileName))
-                            {
-                                byte[] buffer = new byte[8192];
-                                int bytesRead;
-                                do
-                                {
-                                    bytesRead = inputStream.Read(buffer, 0, buffer.Length);
-                                    outputStream.Write(buffer, 0, bytesRead);
-                                } while (bytesRead != 0);
-                            }
-                        }
-                        Log(anchor.Id, "Finish writing image file {0}", fileName);
-                    }
+                    w.Proxy = new WebProxy("127.0.0.1", 8087);
                 }
+                w.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
+                w.DownloadFile(uri, fileName);
+                Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
             }
             catch (WebException e)
             {
@@ -166,7 +197,7 @@ namespace FetcherShop.Fetchers
 
         private void FetchTorrentContent(Anchor anchor, HtmlNode node, string destiDir)
         {
-            Log(anchor.Id, "Begin fetching torrent file");
+            Log(LogLevel.Information, anchor.Id, "Begin fetching torrent file");
             string xpath = "/html/body//a[contains(text(), 'jandown.com')]";
             HtmlNodeCollection nodes = node.SelectNodes(xpath);
             if (nodes == null || nodes.Count == 0) {
@@ -192,7 +223,7 @@ namespace FetcherShop.Fetchers
             }
             else
             {
-                Log(anchor.Id, "Manually downloading torrent needed for {0}", anchor.Url);
+                Log(LogLevel.Warning, anchor.Id, "Manually downloading torrent needed for {0}", anchor.Url);
             }
         }
 
@@ -210,7 +241,7 @@ namespace FetcherShop.Fetchers
             }
             catch (Exception e)
             {
-                Log(anchor.Id, "Error: Downloading torrent file of {0} failed with exception {1}", anchor.Url, e.ToString());
+                Log(LogLevel.TorrentError, anchor.Id, "Error: Downloading torrent file of {0} failed with exception {1}", anchor.Url, e.ToString());
             }
         }
 
@@ -232,7 +263,7 @@ namespace FetcherShop.Fetchers
         {
             if (string.IsNullOrEmpty(downloadUrl))
             {
-                Log(anchor.Id, "Error: downloading url is null or empty for {0} {1}", anchor.Url, anchor.AnchorText);
+                Log(LogLevel.Warning, anchor.Id, "Warning: downloading url is null or empty for {0} {1}", anchor.Url, anchor.AnchorText);
                 return;
             }
             Encoding encoding = Encoding.GetEncoding(sRequestEncoding);
@@ -284,7 +315,7 @@ namespace FetcherShop.Fetchers
                 }
             }
 
-            Log(anchor.Id, "Finish writing torrent file {0}", fileName);
+            Log(LogLevel.Information, anchor.Id, "Finish writing torrent file {0}", fileName);
         }
     }
 }

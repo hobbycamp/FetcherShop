@@ -51,7 +51,17 @@ namespace FetcherShop.Helpers
             if (lastIndex == -1)
                 return null;
             
-            return uri.Substring(lastIndex + 1);
+            string fileName = uri.Substring(lastIndex + 1);
+            if (!fileName.Contains('.'))
+            {
+                fileName += ".png";
+            }
+            else if (fileName[fileName.Length - 1] == '.')
+            {
+                fileName += "png";
+            }
+
+            return fileName;
         }
 
         public static string FilterEntryName(string name)
@@ -92,15 +102,15 @@ namespace FetcherShop.Helpers
             }
         }
 
-        public static void Log(List<LogListener> LogListeners, int id, string format, params object[] args)
-        {
-            if (LogListeners == null)
-                return;
-            foreach (var listener in LogListeners)
-            {
-                listener.Log(id, format, args); 
-            } 
-        }
+        //public static void Log(List<LogListener> LogListeners, int id, string format, params object[] args)
+        //{
+        //    if (LogListeners == null)
+        //        return;
+        //    foreach (var listener in LogListeners)
+        //    {
+        //        listener.Log(id, format, args); 
+        //    } 
+        //}
 
         public static string GetNewFilePath(string dir, string fileName, string suffix, out bool isExisted)
         {

@@ -9,5 +9,6 @@ namespace FetcherShop.Logger
     {
         public int Id { get; set; }
         public string Content { get; set; }
+        public LogLevel LogLevel { get; set; }
     }
 }

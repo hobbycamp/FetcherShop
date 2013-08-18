@@ -49,6 +49,9 @@
     <Compile Include="CategoryOutline.cs" />
     <Compile Include="Fetchers\AbstractFetcher.cs" />
     <Compile Include="Anchor.cs" />
+    <Compile Include="Helpers\MyWebClient.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="Logger\ConsoleLogListener.cs" />
     <Compile Include="Fetchers\BTYZFetcher.cs" />
     <Compile Include="Fetchers\FetcherFactory.cs" />
@@ -56,6 +59,7 @@
     <Compile Include="Fetchers\JTLLFetcher.cs" />
     <Compile Include="Helpers\Util.cs" />
     <Compile Include="Logger\LogItem.cs" />
+    <Compile Include="Logger\LogLevel.cs" />
     <Compile Include="Logger\LogListener.cs" />
     <Compile Include="Logger\LogThread.cs" />
     <Compile Include="ObjectState.cs" />

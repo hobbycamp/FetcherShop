@@ -50,7 +50,7 @@ namespace FetcherShop
         {           
             foreach (LogListener listener in listenerCollection)
             {
-                listener.Log(0, format, args);
+                listener.Log(LogLevel.Information, 0, format, args);
             }
         }
 

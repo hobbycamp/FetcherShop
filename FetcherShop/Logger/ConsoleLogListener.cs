@@ -7,7 +7,7 @@ namespace FetcherShop.Logger
 {
     public class ConsoleLogListener : LogListener
     {
-        public override void Log(int id, string format, params object[] args)
+        public override void Log(LogLevel logLevel, int id, string format, params object[] args)
         {
             string logItem = string.Format(format, args);
             Console.WriteLine("[{0}] {1}", id, logItem);

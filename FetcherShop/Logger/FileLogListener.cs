@@ -21,13 +21,14 @@ namespace FetcherShop.Logger
         {
             LogQueue = queue;
         }
-        public override void Log(int id, string format, params object[] args)
+        public override void Log(LogLevel logLevel, int id, string format, params object[] args)
         {
             string content = string.Format(format, args) + Environment.NewLine;
             content = string.Format("[{0}]: {1}", id, content);
             LogQueue.TryAdd(new LogItem() { 
                 Id = id,
-                Content = content
+                Content = content,
+                LogLevel = logLevel
             });            
         }
 
