@@ -11,6 +11,7 @@ namespace FetcherShop.Logger
         Warning = 1,
         Error = 2,
         ImageError = 3,
-        TorrentError = 4
+        TorrentError = 4,
+        ShotpixOrAXiaZaiImageError = 5
     }
 }

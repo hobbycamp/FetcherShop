@@ -53,6 +53,10 @@ namespace FetcherShop.Fetchers
                         {
                             bool isExisted;
                             string imageFilePath = GetFilePath1(destiDir, imageFileName, out isExisted);
+                            if (!isExisted)
+                            {
+                                CheckImageFile(imageFilePath, out isExisted);
+                            }
                             if (Category.Overrite || !isExisted)
                             {
                                 DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
@@ -61,6 +65,11 @@ namespace FetcherShop.Fetchers
                     }
                 }
             }   
+        }
+
+        private void CheckImageFile(string imageFilePath, out bool isExisted)
+        {
+            isExisted = File.Exists(ChangeExtension(imageFilePath));
         }
 
         private void DownloadRemoteImageFileWithRetry(Anchor anchor, string uri, string fileName)
@@ -77,6 +86,21 @@ namespace FetcherShop.Fetchers
                 catch (WebException webExp)
                 {
                     exp = webExp;
+                    if (webExp.Status == WebExceptionStatus.ConnectFailure ||
+                        webExp.Status == WebExceptionStatus.UnknownError ||
+                        webExp.Status == WebExceptionStatus.ProtocolError ||
+                        webExp.Status == WebExceptionStatus.NameResolutionFailure ||
+                        webExp.Status == WebExceptionStatus.Timeout ||
+                        webExp.Status == WebExceptionStatus.ReceiveFailure ||
+                        webExp.Status == WebExceptionStatus.ConnectionClosed)
+                    {
+                        isUseProxy = true;
+                    }
+                    else
+                    {
+                        Log(LogLevel.Error, 0, "Web exception status {0}", webExp.Status.ToString());
+                    }
+                    
                     if (webExp.Response != null)
                     {
                         if (((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.Forbidden ||
@@ -98,7 +122,12 @@ namespace FetcherShop.Fetchers
                 }
             } catch (Exception e)
             {
-                Log(LogLevel.ImageError, anchor.Id, "Error: Downloading image file {0} of {1} failed with exception {2}", uri, anchor.Url, e.ToString());
+                LogLevel l = LogLevel.ImageError;
+                if (uri.Contains("www.shotpix.com/images") || uri.Contains("www.axiazai.com"))
+                {
+                    l = LogLevel.ShotpixOrAXiaZaiImageError;
+                }
+                Log(l, anchor.Id, "Error: Downloading image file {0} of {1} failed with exception {2}", uri, anchor.Url, e.ToString());
             }
         }
 
@@ -150,13 +179,28 @@ namespace FetcherShop.Fetchers
             {
                 if (e.Response != null)
                 {
-                    if (((HttpWebResponse)e.Response).StatusCode != HttpStatusCode.NotFound)
+                    if (((HttpWebResponse)e.Response).StatusCode == HttpStatusCode.NotFound)
+                    {
+                        using (File.Create(ChangeExtension(fileName))) { };
+                    }
+                    else
                     {
                         throw;
                     }
                 }
+                else
+                {
+                    throw;
+                }
             }
         }
+
+        private string ChangeExtension(string filePath)
+        {
+            int lastDot = filePath.LastIndexOf('.');
+            return filePath.Substring(0, lastDot) + "NOT FOUND" + ".txt";
+        }
+
 
         protected string GetFilePath1(string dir, string imageFileName, out bool isExisted)
         {
@@ -197,7 +241,6 @@ namespace FetcherShop.Fetchers
 
         private void FetchTorrentContent(Anchor anchor, HtmlNode node, string destiDir)
         {
-            Log(LogLevel.Information, anchor.Id, "Begin fetching torrent file");
             string xpath = "/html/body//a[contains(text(), 'jandown.com')]";
             HtmlNodeCollection nodes = node.SelectNodes(xpath);
             if (nodes == null || nodes.Count == 0) {
@@ -229,6 +272,7 @@ namespace FetcherShop.Fetchers
 
         private void DownloadTorrentWithRetry(Anchor anchor, string hrefUrl, string destiDir, string fileName)
         {
+            Log(LogLevel.Information, anchor.Id, "Begin fetching torrent file");
             try
             {
                 Util.DoWithRetry("DownloadTorrent",
