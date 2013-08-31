@@ -51,15 +51,19 @@ namespace FetcherShop.Fetchers
                         string imageFileName = Util.GetRemoteFileName(imageSrcUrl);
                         if (imageFileName != null)
                         {
-                            bool isExisted;
-                            string imageFilePath = GetFilePath1(destiDir, imageFileName, out isExisted);
-                            if (!isExisted)
+                            bool isExisted = IsImageFileExist(destiDir, imageFileName);
+                            if (!isExisted || Category.Overrite)
                             {
-                                CheckImageFile(imageFilePath, out isExisted);
-                            }
-                            if (Category.Overrite || !isExisted)
-                            {
-                                DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
+                                string imageFilePath = GetImageFilePath(destiDir, imageFileName);
+                                if (imageFilePath == null)
+                                {
+                                    Log(LogLevel.Warning, anchor.Id, "Failed to combine a valid image file path with {0}",
+                                        imageFileName);
+                                }
+                                else
+                                {
+                                    DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
+                                }
                             }
                         }
                     }
@@ -72,54 +76,26 @@ namespace FetcherShop.Fetchers
             isExisted = File.Exists(ChangeExtension(imageFilePath));
         }
 
+        private bool IsImageFileExist(string dir, string imageFileName)
+        {
+            imageFileName = Util.FilterEntryName(imageFileName);
+            string imageFilePath = Path.Combine(dir, imageFileName);
+            return File.Exists(imageFilePath) ||
+                File.Exists(ChangeExtension(imageFilePath));
+        }
+
         private void DownloadRemoteImageFileWithRetry(Anchor anchor, string uri, string fileName)
         {
             try {
                 Log(LogLevel.Information, anchor.Id, "Begin downloading remote image file {0}", uri);
-                // Try download the image file for the first time to clarify the exception type if there is
-                WebException exp = null;
-                bool isUseProxy = false;
-                try
-                {
-                    DownloadRemoteImageFile(anchor, uri, fileName, isUseProxy);
-                }
-                catch (WebException webExp)
-                {
-                    exp = webExp;
-                    if (webExp.Status == WebExceptionStatus.ConnectFailure ||
-                        webExp.Status == WebExceptionStatus.UnknownError ||
-                        webExp.Status == WebExceptionStatus.ProtocolError ||
-                        webExp.Status == WebExceptionStatus.NameResolutionFailure ||
-                        webExp.Status == WebExceptionStatus.Timeout ||
-                        webExp.Status == WebExceptionStatus.ReceiveFailure ||
-                        webExp.Status == WebExceptionStatus.ConnectionClosed)
-                    {
-                        isUseProxy = true;
-                    }
-                    else
-                    {
-                        Log(LogLevel.Error, 0, "Web exception status {0}", webExp.Status.ToString());
-                    }
-                    
-                    if (webExp.Response != null)
-                    {
-                        if (((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.Forbidden ||
-                            ((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.InternalServerError)
-                        {
-                            isUseProxy = true; 
-                        }
-                    }
-                }
-                if (exp != null)
-                {
-                    Util.DoWithRetry("DownloadRemoteImageFile",
-                        () => { DownloadRemoteImageFile(anchor, uri, fileName, isUseProxy); },
-                        anchor.Id,
-                        LogListeners,
-                        3,
-                        5000
-                        );
-                }
+                Util.DoWithRetry("DownloadRemoteImageFile",
+                    () => { DownloadRemoteImageFile(anchor, uri, fileName); },
+                    anchor.Id,
+                    LogListeners,
+                    3,
+                    10000
+                );
+               
             } catch (Exception e)
             {
                 LogLevel l = LogLevel.ImageError;
@@ -131,41 +107,52 @@ namespace FetcherShop.Fetchers
             }
         }
 
-        private void DownloadRemoteImageFile(Anchor anchor, string uri, string fileName, bool isUseProxy)
+        private void DownloadRemoteImageFile(Anchor anchor, string uri, string fileName)
         {
+            Exception exp = null;
+            bool isUseProxy = false;
             try
             {
-                //HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
-                //using (var response = (HttpWebResponse)request.GetResponse())
-                //{
-                //    // Check that the remote file was found. The ContentType
-                //    // check is performed since a request for a non-existent
-                //    // image file might be redirected to a 404-page, which would
-                //    // yield the StatusCode "OK", even though the image was not
-                //    // found.
-                //    if ((response.StatusCode == HttpStatusCode.OK ||
-                //        response.StatusCode == HttpStatusCode.Moved ||
-                //        response.StatusCode == HttpStatusCode.Redirect)
-                //        //&& response.ContentType.StartsWith("image", StringComparison.OrdinalIgnoreCase)
-                //        )
-                //    {
-                //        // if the remote file was found, download it
-                //        using (Stream inputStream = response.GetResponseStream())
-                //        {
-                //            using (Stream outputStream = File.OpenWrite(fileName))
-                //            {
-                //                byte[] buffer = new byte[8192];
-                //                int bytesRead;
-                //                do
-                //                {
-                //                    bytesRead = inputStream.Read(buffer, 0, buffer.Length);
-                //                    outputStream.Write(buffer, 0, bytesRead);
-                //                } while (bytesRead != 0);
-                //            }
-                //        }
-                //        Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
-                //    }
-                //}
+                MyWebClient w = new MyWebClient();
+                w.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
+                w.DownloadFile(uri, fileName);
+                Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
+            }
+            catch (WebException webExp)
+            {
+                exp = webExp;
+                if (webExp.Status == WebExceptionStatus.ConnectFailure ||
+                    webExp.Status == WebExceptionStatus.UnknownError ||
+                    webExp.Status == WebExceptionStatus.ProtocolError ||
+                    webExp.Status == WebExceptionStatus.NameResolutionFailure ||
+                    webExp.Status == WebExceptionStatus.Timeout ||
+                    webExp.Status == WebExceptionStatus.ReceiveFailure ||
+                    webExp.Status == WebExceptionStatus.ConnectionClosed)
+                {
+                    isUseProxy = true;
+                }
+                else
+                {
+                    Log(LogLevel.Error, 0, "Web exception status {0}", webExp.Status.ToString());
+                }
+
+                if (webExp.Response != null)
+                {
+                    if (((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.Forbidden ||
+                        ((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.InternalServerError)
+                    {
+                        isUseProxy = true;
+                    }
+                    else if (((HttpWebResponse)webExp.Response).StatusCode == HttpStatusCode.NotFound)
+                    {
+                        using (File.Create(ChangeExtension(fileName))) { };
+                    }
+                }                
+            }
+            // There is an exception occurred when trying to download the image for the first time
+            // Would try to download it again with proxy if necessary
+            if (exp != null)
+            {
                 MyWebClient w = new MyWebClient();
                 if (isUseProxy)
                 {
@@ -174,24 +161,6 @@ namespace FetcherShop.Fetchers
                 w.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
                 w.DownloadFile(uri, fileName);
                 Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
-            }
-            catch (WebException e)
-            {
-                if (e.Response != null)
-                {
-                    if (((HttpWebResponse)e.Response).StatusCode == HttpStatusCode.NotFound)
-                    {
-                        using (File.Create(ChangeExtension(fileName))) { };
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                else
-                {
-                    throw;
-                }
             }
         }
 
@@ -202,33 +171,29 @@ namespace FetcherShop.Fetchers
         }
 
 
-        protected string GetFilePath1(string dir, string imageFileName, out bool isExisted)
+        protected string GetImageFilePath(string dir, string imageFileName)
         {
             imageFileName = Util.FilterEntryName(imageFileName);
-            string filePath = Path.Combine(dir, imageFileName);
-            if (!File.Exists(filePath))
-            {
-                isExisted = false;
-                return filePath;
-            }
+            return Path.Combine(dir, imageFileName);
+            //if (!File.Exists(filePath))
+            //{
+            //    return filePath;
+            //}
 
-            string fileNameFormat = GetFileNameFormat(imageFileName);
-            if (fileNameFormat == null)
-            {
-                //Log("Warning: {0} is an invalid image file name", imageFileName);
-                isExisted = false;
-                return null;
-            }
-            string filePathFormat = Path.Combine(dir, fileNameFormat);
-            int i = 1;
-            string filePath1 = "";
-            do
-            {
-                filePath1 = string.Format(filePathFormat, i++);
+            //string fileNameFormat = GetFileNameFormat(imageFileName);
+            //if (fileNameFormat == null)
+            //{
+            //    return null;
+            //}
+            //string filePathFormat = Path.Combine(dir, fileNameFormat);
+            //int i = 1;
+            //string filePath1 = "";
+            //do
+            //{
+            //    filePath1 = string.Format(filePathFormat, i++);
 
-            } while (File.Exists(filePath1));
-            isExisted = true;
-            return filePath1;
+            //} while (File.Exists(filePath1));
+            //return filePath1;
         }
 
         private string GetFileNameFormat(string fileName)

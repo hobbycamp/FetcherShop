@@ -50,9 +50,13 @@ namespace FetcherShop.Helpers
             int lastIndex = uri.LastIndexOf('/');
             if (lastIndex == -1)
                 return null;
-            
+            // Get the part of the file name
             string fileName = uri.Substring(lastIndex + 1);
-            if (!fileName.Contains('.'))
+            if (string.IsNullOrEmpty(fileName))
+            {
+                fileName = Guid.NewGuid().ToString() + ".png";
+            } 
+            else if (!fileName.Contains('.'))
             {
                 fileName += ".png";
             }
