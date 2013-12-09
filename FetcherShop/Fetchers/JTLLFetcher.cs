@@ -12,7 +12,7 @@ namespace FetcherShop.Fetchers
 {
     public class JTLLFetcher : AbstractFetcher
     {
-        public JTLLFetcher(Category category) : base(category)
+        public JTLLFetcher(Zone zone) : base(zone)
         {
         }
     }

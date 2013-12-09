@@ -15,7 +15,6 @@ namespace FetcherShop
 {
     class Program
     {
-        static List<LogListener> listenerCollection = new List<LogListener>();
         static void Main(string[] args)
         {
             if (args.Length != 1)
@@ -23,52 +22,48 @@ namespace FetcherShop
                 Console.WriteLine("A configuration file is required");
                 return;
             }
-            WebSiteConfig siteConfig = ReadConfig(args[0]);
-
-            //logFile = Path.Combine(siteConfig.LogDirectory, DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".txt");
-            listenerCollection.Add(new ConsoleLogListener());
-            //listenerCollection.Add(new FileLogListener(logFile));
-            Log("Parse the configuration of the web site");
+            FetcherConfig siteConfig = ReadConfig(args[0]);
             if (siteConfig == null)
             {
-                Log("Site config is null because configuration file path doesn't exist or is invalid");
+                Console.WriteLine("Fetcher configuration is null");
                 return;
             }
-
-            foreach (Category cat in siteConfig.Categories)
+            InitializeLogger(siteConfig.LogDirectory);
+            foreach (Zone zone in siteConfig.Zones)
             {
-                Log("Start to fetch category {0}", cat.Keyword);
-                AbstractFetcher fetcher = FetcherFactory.CreateFetcher(cat);
-                fetcher.Fetch(siteConfig);
-            }
+                zone.SiteUrl = siteConfig.RootUrl;
 
-            UpdateConfig(args[0], siteConfig);            
-            Log("Finish all categories");
+                GeneralLogger.Instance().Log("Start to fetch zone {0}", zone.Name);
+
+                AbstractFetcher fetcher = FetcherFactory.CreateFetcher(zone);
+                if (fetcher == null)
+                {
+                    GeneralLogger.Instance().Log("Unknown or unsupported zone {0}", zone.Name);
+                    continue;
+                }
+                fetcher.Fetch();
+            }
+            
+            
+            //UpdateConfig(args[0], siteConfig);            
+            GeneralLogger.Instance().Log("Finish all categories");
         }
 
-        static void Log(string format, params object[] args)
-        {           
-            foreach (LogListener listener in listenerCollection)
-            {
-                listener.Log(LogLevel.Information, 0, format, args);
-            }
-        }
-
-        static WebSiteConfig ReadConfig(string configPath)
+        static FetcherConfig ReadConfig(string configPath)
         {
             if (!Path.IsPathRooted(configPath))
             {
-                // If given an absolute path, then combine it with the current directory
+                // If given a relative path, then combine it with the current directory
                 configPath = Path.Combine(Environment.CurrentDirectory, configPath);
             }
             using (Stream stream = new FileStream(configPath, FileMode.Open))
             {
-                XmlSerializer serializer = new XmlSerializer(typeof(WebSiteConfig));
-                return (WebSiteConfig)serializer.Deserialize(stream);
+                XmlSerializer serializer = new XmlSerializer(typeof(FetcherConfig));
+                return (FetcherConfig)serializer.Deserialize(stream);
             }
         }
 
-        static void UpdateConfig(string configPath, WebSiteConfig siteConfig)
+        static void UpdateConfig(string configPath, FetcherConfig siteConfig)
         {
             if (!Path.IsPathRooted(configPath))
             {
@@ -77,10 +72,20 @@ namespace FetcherShop
             }
             using (FileStream newFileStream = new FileStream(configPath, FileMode.Create))
             {
-                XmlSerializer serializer = new XmlSerializer(typeof(WebSiteConfig));
+                XmlSerializer serializer = new XmlSerializer(typeof(FetcherConfig));
                 // Write back config file
                 serializer.Serialize(newFileStream, siteConfig);
             }
+        }
+
+        static void InitializeLogger(string logDirectory)
+        {
+            GeneralLogger.Instance().AddLogListner(ConsoleLogListener.Instance());
+            if (!Directory.Exists(logDirectory))
+                Directory.CreateDirectory(logDirectory);
+
+            string logFile = Path.Combine(logDirectory, DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".txt");
+            GeneralLogger.Instance().AddLogListner(new FileLogListener(logFile));
         }
     }
 }

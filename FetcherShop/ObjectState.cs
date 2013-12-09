@@ -8,9 +8,8 @@ namespace FetcherShop
 {
     public class ObjectState
     {
-        public Anchor anchor { get; set; }
-        public string outputDirectory { get; set; }
-        public Category cat { get; set; }
-        public ManualResetEvent manualResetEvent{ get; set; }
+        public Anchor Anchor { get; set; }
+        public Zone Zone { get; set; }
+        public ManualResetEvent ManualResetEvent{ get; set; }
     }
 }

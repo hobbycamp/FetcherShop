@@ -85,7 +85,7 @@ namespace FetcherShop.Helpers
             return sb.ToString();
         }
 
-        public static void DoWithRetry(string actionName, Action func, int id, List<LogListener> listeners, int retryCount = 5, int retryInterval = 120000)
+        public static void DoWithRetry(string actionName, Action func, int id, int retryCount = 5, int retryInterval = 120000)
         {
             for (int i = 0; i < retryCount; i++)
             {
@@ -150,24 +150,24 @@ namespace FetcherShop.Helpers
             return null; 
         }
 
-        public static HtmlDocument GetHtmlDocument(Anchor url, List<LogListener> listeners)
+        public static HtmlDocument GetHtmlDocument(Anchor url)
         {
             HtmlDocument doc = null;
             DoWithRetry("GetHtmlDocument", () =>
             {
-                WebRequest req = WebRequest.Create(url.Url);
+                WebRequest req = WebRequest.Create(url.AbsoluteUrl);
                 WebResponse resp = req.GetResponse();
                 Stream stream = resp.GetResponseStream();
 
                 doc = new HtmlDocument();
                 doc.Load(stream, Encoding.GetEncoding("GB2312"));
                 resp.Close();
-            }, url.Id, listeners, 1, 20000);
+            }, url.Id, 1, 20000);
 
             return doc;
         }
 
-        public static HtmlDocument GetHtmlDocument(string url, List<LogListener> listeners)
+        public static HtmlDocument GetHtmlDocument(string url)
         {
             HtmlDocument doc = null;
             DoWithRetry("GetHtmlDocument", () =>
@@ -179,7 +179,7 @@ namespace FetcherShop.Helpers
                 doc = new HtmlDocument();
                 doc.Load(stream, Encoding.GetEncoding("GB2312"));
                 resp.Close();
-            }, 0, listeners, 2, 20000);
+            }, 0, 2, 20000);
 
             return doc;
         }

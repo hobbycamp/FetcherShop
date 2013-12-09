@@ -7,23 +7,23 @@ namespace FetcherShop.Fetchers
 {
     public class FetcherFactory
     {
-        public static AbstractFetcher CreateFetcher(Category category)
+        public static AbstractFetcher CreateFetcher(Zone zone)
         {
-            if (string.Compare(category.Keyword, "jiatingluanlun", true) == 0)
+            if (string.Compare(zone.Name, "jiatingluanlun", true) == 0)
             {
-                return new JTLLFetcher(category);
+                return new JTLLFetcher(zone);
             }
-            else if (string.Compare(category.Keyword, "btyazhouqu", true) == 0)
+            else if (string.Compare(zone.Name, "btyazhouqu", true) == 0)
             {
-                return new BTYZFetcher(category);
+                return new BTYZFetcher(zone);
             }
-            else if (string.Compare(category.Keyword, "btdongmanqu", true) == 0)
+            else if (string.Compare(zone.Name, "btdongmanqu", true) == 0)
             {
-                return new BTYZFetcher(category);
+                return new BTYZFetcher(zone);
             }
-            else if (string.Compare(category.Keyword, "btoumeiqu", true) == 0)
+            else if (string.Compare(zone.Name, "btoumeiqu", true) == 0)
             {
-                return new BTYZFetcher(category);
+                return new BTYZFetcher(zone);
             }
 
             return null;

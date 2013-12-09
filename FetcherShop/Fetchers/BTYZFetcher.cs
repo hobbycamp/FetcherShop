@@ -19,8 +19,8 @@ namespace FetcherShop.Fetchers
                 "multipart/form-data; boundary=---------------------------7dd731a807a4";
         private static string sRequestEncoding = "ascii";
 
-        public BTYZFetcher(Category category)
-            : base(category)
+        public BTYZFetcher(Zone zone)
+            : base(zone)
         { }
 
         protected override void FetchAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
@@ -28,7 +28,7 @@ namespace FetcherShop.Fetchers
             destiDir = Path.Combine(destiDir, Util.FilterEntryName(anchor.AnchorText));
             if (!Directory.Exists(destiDir))
             {
-                Log(LogLevel.Information, anchor.Id, "Create directory {0} for {1}", destiDir, Category.Keyword);
+                GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Create directory {0} for {1}", destiDir, Zone.Name);
                 Directory.CreateDirectory(destiDir);
             }
 
@@ -52,19 +52,19 @@ namespace FetcherShop.Fetchers
                         if (imageFileName != null)
                         {
                             bool isExisted = IsImageFileExist(destiDir, imageFileName);
-                            if (!isExisted || Category.Overrite)
+                            //if (!isExisted || Category.Overrite)
+                            //{
+                            string imageFilePath = GetImageFilePath(destiDir, imageFileName);
+                            if (imageFilePath == null)
                             {
-                                string imageFilePath = GetImageFilePath(destiDir, imageFileName);
-                                if (imageFilePath == null)
-                                {
-                                    Log(LogLevel.Warning, anchor.Id, "Failed to combine a valid image file path with {0}",
-                                        imageFileName);
-                                }
-                                else
-                                {
-                                    DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
-                                }
+                                GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Failed to combine a valid image file path with {0}",
+                                    imageFileName);
                             }
+                            else
+                            {
+                                DownloadRemoteImageFileWithRetry(anchor, imageSrcUrl, imageFilePath);
+                            }
+                            //}
                         }
                     }
                 }
@@ -87,11 +87,10 @@ namespace FetcherShop.Fetchers
         private void DownloadRemoteImageFileWithRetry(Anchor anchor, string uri, string fileName)
         {
             try {
-                Log(LogLevel.Information, anchor.Id, "Begin downloading remote image file {0}", uri);
+                GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Begin downloading remote image file {0}", uri);
                 Util.DoWithRetry("DownloadRemoteImageFile",
                     () => { DownloadRemoteImageFile(anchor, uri, fileName); },
                     anchor.Id,
-                    LogListeners,
                     3,
                     10000
                 );
@@ -103,7 +102,7 @@ namespace FetcherShop.Fetchers
                 {
                     l = LogLevel.ShotpixOrAXiaZaiImageError;
                 }
-                Log(l, anchor.Id, "Error: Downloading image file {0} of {1} failed with exception {2}", uri, anchor.Url, e.ToString());
+                GeneralLogger.Instance().Log(l, anchor.Id, "Error: Downloading image file {0} of {1} failed with exception {2}", uri, anchor.AbsoluteUrl, e.ToString());
             }
         }
 
@@ -116,7 +115,7 @@ namespace FetcherShop.Fetchers
                 MyWebClient w = new MyWebClient();
                 w.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
                 w.DownloadFile(uri, fileName);
-                Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
+                GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
             }
             catch (WebException webExp)
             {
@@ -133,7 +132,7 @@ namespace FetcherShop.Fetchers
                 }
                 else
                 {
-                    Log(LogLevel.Error, 0, "Web exception status {0}", webExp.Status.ToString());
+                    GeneralLogger.Instance().Log(LogLevel.Error, 0, "Web exception status {0}", webExp.Status.ToString());
                 }
 
                 if (webExp.Response != null)
@@ -160,7 +159,7 @@ namespace FetcherShop.Fetchers
                 }
                 w.Headers.Add("user-agent", "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.2; .NET CLR 1.0.3705;)");
                 w.DownloadFile(uri, fileName);
-                Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
+                GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Finish writing image file {0}", fileName);
             }
         }
 
@@ -222,35 +221,34 @@ namespace FetcherShop.Fetchers
                         bool isExisted;
                         string fileEntry = Util.FilterEntryName(anchor.AnchorText);
                         string fileName = Util.GetNewFilePath(destiDir, fileEntry, ".torrent", out isExisted);
-                        if (Category.Overrite || !isExisted)
-                        {
-                            DownloadTorrentWithRetry(anchor, hrefUrl, destiDir, fileName);
-                        }
+                        //if (Category.Overrite || !isExisted)
+                        //{
+                        DownloadTorrentWithRetry(anchor, hrefUrl, destiDir, fileName);
+                        //}
                     }
                 }
             }
             else
             {
-                Log(LogLevel.Warning, anchor.Id, "Manually downloading torrent needed for {0}", anchor.Url);
+                GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Manually downloading torrent needed for {0}", anchor.AbsoluteUrl);
             }
         }
 
         private void DownloadTorrentWithRetry(Anchor anchor, string hrefUrl, string destiDir, string fileName)
         {
-            Log(LogLevel.Information, anchor.Id, "Begin fetching torrent file");
+            GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Begin fetching torrent file");
             try
             {
                 Util.DoWithRetry("DownloadTorrent",
                     () => { DownloadTorrent(anchor, Util.GetDownloadUrl(hrefUrl), hrefUrl, destiDir, fileName); },
                     anchor.Id,
-                    LogListeners,
                     3,
                     2000
                     );
             }
             catch (Exception e)
             {
-                Log(LogLevel.TorrentError, anchor.Id, "Error: Downloading torrent file of {0} failed with exception {1}", anchor.Url, e.ToString());
+                GeneralLogger.Instance().Log(LogLevel.TorrentError, anchor.Id, "Error: Downloading torrent file of {0} failed with exception {1}", anchor.AbsoluteUrl, e.ToString());
             }
         }
 
@@ -272,7 +270,7 @@ namespace FetcherShop.Fetchers
         {
             if (string.IsNullOrEmpty(downloadUrl))
             {
-                Log(LogLevel.Warning, anchor.Id, "Warning: downloading url is null or empty for {0} {1}", anchor.Url, anchor.AnchorText);
+                GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Warning: downloading url is null or empty for {0} {1}", anchor.AbsoluteUrl, anchor.AnchorText);
                 return;
             }
             Encoding encoding = Encoding.GetEncoding(sRequestEncoding);
@@ -324,7 +322,7 @@ namespace FetcherShop.Fetchers
                 }
             }
 
-            Log(LogLevel.Information, anchor.Id, "Finish writing torrent file {0}", fileName);
+            GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Finish writing torrent file {0}", fileName);
         }
     }
 }

@@ -7,8 +7,8 @@ namespace FetcherShop
 {
     public class Anchor
     {
-        public string Url { get; set; }
-        public string AnchorText { get; set; }
-        public int Id { get; set; }
+        public string AbsoluteUrl;
+        public string AnchorText;
+        public int Id;
     }
 }
