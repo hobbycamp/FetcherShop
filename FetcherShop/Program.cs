@@ -44,8 +44,6 @@ namespace FetcherShop
                 fetcher.Fetch();
             }
             
-            
-            //UpdateConfig(args[0], siteConfig);            
             GeneralLogger.Instance().Log("Finish all categories");
         }
 

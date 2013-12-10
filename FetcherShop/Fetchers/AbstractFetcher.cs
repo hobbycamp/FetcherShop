@@ -24,8 +24,12 @@ namespace FetcherShop.Fetchers
             Zone = zone;
         }
 
-        protected void InitializeFileLogListener()
+        protected void InitializeAnchorFileLogListener()
         {
+            if (!Directory.Exists(Zone.RunConfiguration.LogDirectory))
+            {
+                Directory.CreateDirectory(Zone.RunConfiguration.LogDirectory);
+            }
             string logFile = Path.Combine(Zone.RunConfiguration.LogDirectory, 
                 Zone.Name + DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".txt");
 
@@ -39,7 +43,7 @@ namespace FetcherShop.Fetchers
         
         public void Fetch()
         {
-            InitializeFileLogListener();
+            InitializeAnchorFileLogListener();
             if (!Zone.PreFetch())
             {
                 GeneralLogger.Instance().Log(LogLevel.Error, 0, "[Crash] Failed to get the outline information of category {0}", Zone.Name);
@@ -47,7 +51,7 @@ namespace FetcherShop.Fetchers
             }
 
             int startAnchorId = 1;
-            bool hitLastRecord = false;
+            //bool hitLastRecord = false;
             for (int i = 1; i <= Zone.TotalPageNumber; i++)
             {
                 string url = Zone.GetPageUrl(i);
