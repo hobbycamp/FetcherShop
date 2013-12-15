@@ -24,7 +24,7 @@ namespace FetcherShop.Logger
 
         public override void Log(LogLevel logLevel, int id, string format, params object[] args)
         {
-            Log(format, args);
+            // Omit this kind of logs
         }
     }
 }

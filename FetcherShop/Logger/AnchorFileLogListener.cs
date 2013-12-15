@@ -9,12 +9,6 @@ namespace FetcherShop.Logger
 {
     public class AnchorFileLogListener : LogListener
     {
-        public string FileName { get; private set; }
-        public AnchorFileLogListener(string fileName)
-        {
-            FileName = fileName;
-        }
-
         public BlockingCollection<LogItem> LogQueue { get; private set; }
 
         public AnchorFileLogListener(BlockingCollection<LogItem> queue)

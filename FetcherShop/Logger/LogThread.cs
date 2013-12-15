@@ -10,10 +10,8 @@ namespace FetcherShop.Logger
 {
     public class LogThread
     {
-
         private BlockingCollection<LogItem> LogsQueue { get; set; }
         private string LogFileName { get; set; }
-        //private ListDictionary<int, long> Seeks { get; set; }
         private Dictionary<FileStream, Dictionary<int, long>> Seeks { get; set; }
         private Dictionary<LogLevel, FileStream> FileStreams = null;
 
