@@ -23,7 +23,7 @@ namespace FetcherShop.Fetchers
             : base(zone)
         { }
 
-        protected override void FetchAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
+        protected override void ExtractAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
         {
             destiDir = Path.Combine(destiDir, Util.FilterEntryName(anchor.AnchorText));
             if (!Directory.Exists(destiDir))
@@ -32,7 +32,7 @@ namespace FetcherShop.Fetchers
                 Directory.CreateDirectory(destiDir);
             }
 
-            base.FetchAnchorContent(anchor, node, destiDir);
+            base.ExtractAnchorContent(anchor, node, destiDir);
 
             FetchImageContent(anchor, node, destiDir);
 

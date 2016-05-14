@@ -14,10 +14,12 @@ namespace FetcherShop.Fetchers
 {
     public abstract class AbstractFetcher
     {
+        public const string XPathContent = "/html/body//div[@class='news']";
         private int numberOfItems = 0;
         private ManualResetEvent finished = new ManualResetEvent(false);
         public Zone Zone { get; set; }
         private LogThread logThread = null;
+        private readonly GeneralLogger generalLogger = GeneralLogger.Instance();
 
         public AbstractFetcher(Zone zone)
         {
@@ -35,7 +37,7 @@ namespace FetcherShop.Fetchers
 
             // Initialize a central log items queue
             BlockingCollection<LogItem> queue = new BlockingCollection<LogItem>();
-            GeneralLogger.Instance().AddLogListner(new AnchorFileLogListener(queue));
+            generalLogger.AddLogListner(new AnchorFileLogListener(queue));
 
             logThread = new LogThread(queue, logFile);
             logThread.StartLog();
@@ -46,7 +48,7 @@ namespace FetcherShop.Fetchers
             InitializeAnchorFileLogListener();
             if (!Zone.PreFetch())
             {
-                GeneralLogger.Instance().Log(LogLevel.Error, 0, "[Crash] Failed to get the outline information of category {0}", Zone.Name);
+                generalLogger.Log(LogLevel.Error, 0, "[Crash] Failed to get the outline information of category {0}", Zone.Name);
                 return;
             }
 
@@ -60,8 +62,9 @@ namespace FetcherShop.Fetchers
                 if (allItems == null)
                     continue;
                 //hitLastRecord = IsHitLastRecord(allItems, Category);
-                GeneralLogger.Instance().Log(LogLevel.Information, 0, "Number of items is {0} for {1}", allItems.Count(), url);
-                Interlocked.Add(ref numberOfItems, allItems.Count());
+                var itemCount = allItems.Count();
+                generalLogger.Log(LogLevel.Information, 0, "Number of items is {0} for {1}", itemCount, url);
+                Interlocked.Add(ref numberOfItems, itemCount);
                 foreach (Anchor anchor in allItems)
                 {
                     if (anchor.AbsoluteUrl != null)
@@ -72,21 +75,23 @@ namespace FetcherShop.Fetchers
                         //}
                         anchor.Id = startAnchorId++;
                             
-                        ThreadPool.QueueUserWorkItem(new WaitCallback(MyWaitCallback), new ObjectState()
-                        {
-                            Anchor = anchor,
-                            Zone = Zone
-                        });                            
+                        ThreadPool.QueueUserWorkItem(DoFetch, 
+                            new ObjectState
+                            {
+                                Anchor = anchor,
+                                Zone = Zone
+                            }
+                        );                            
                     }
                 }
             }
             finished.WaitOne();
-            GeneralLogger.Instance().Log(LogLevel.Information, 0, "Finish fetching zone {0}", Zone);
+            generalLogger.Log(LogLevel.Information, 0, "Finish fetching zone {0}", Zone);
 
             logThread.FinishLog();
         }
 
-        public void MyWaitCallback(object state)
+        public void DoFetch(object state)
         {
             ObjectState os = (ObjectState)state;
             try
@@ -97,7 +102,7 @@ namespace FetcherShop.Fetchers
             {
                 if (Interlocked.Decrement(ref numberOfItems) == 0)
                 {
-                    GeneralLogger.Instance().Log(LogLevel.Information, 0, "Finished all queue items for {0}", os.Zone.Name);
+                    generalLogger.Log(LogLevel.Information, 0, "Finished all queue items for {0}", os.Zone.Name);
                     finished.Set();
                 }
             }
@@ -145,10 +150,10 @@ namespace FetcherShop.Fetchers
         //        Log(LogLevel.Warning, anchor.Id, "Warning: Content empty, manually interferce maybe needed");
         //        return;
         //    }
-        //    FetchAnchorContent(anchor, node, destiDir);
+        //    ExtractAnchorContent(anchor, node, destiDir);
         //}
 
-        protected virtual void FetchAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
+        protected virtual void ExtractAnchorContent(Anchor anchor, HtmlNode node, string destiDir)
         {
             try
             {
@@ -156,13 +161,13 @@ namespace FetcherShop.Fetchers
                 string filePath = GetFilePath(destiDir, anchor.AnchorText, ".txt", out isExisted);
                 //if (Category.Overrite || !isExisted)
                 //{
-                GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Write text file {0} with url {1}", filePath, anchor.AbsoluteUrl);
-                FetchText(filePath, node, anchor);
+                generalLogger.Log(LogLevel.Information, anchor.Id, "Write text file {0} with url {1}", filePath, anchor.AbsoluteUrl);
+                ExtractText(filePath, node, anchor);
                 //}
             }
             catch (Exception e)
             {
-                GeneralLogger.Instance().Log(LogLevel.Error, anchor.Id, "Exception: Fetch text file with url {0}: {1}", anchor.AbsoluteUrl, e); 
+                generalLogger.Log(LogLevel.Error, anchor.Id, "Exception: Fetch text file with url {0}: {1}", anchor.AbsoluteUrl, e); 
             }
         }
 
@@ -207,31 +212,31 @@ namespace FetcherShop.Fetchers
                 string dir = zone.RunConfiguration.OutputDirectory;
                 if (!Directory.Exists(dir))
                 {
-                    GeneralLogger.Instance().Log(LogLevel.Information, anchor.Id, "Create directory {0} for zone {1}", dir, zone.Name);
+                    generalLogger.Log(LogLevel.Information, anchor.Id, "Create directory {0} for zone {1}", dir, zone.Name);
                     Directory.CreateDirectory(dir);
                 }
-                const string xpath = "/html/body/div[contains(@class, 'main')]/div[@class='content']";
-                HtmlNode node = doc.DocumentNode.SelectSingleNode(xpath);
+
+                HtmlNode node = doc.DocumentNode.SelectSingleNode(XPathContent);
                 if (node == null)
                 {
-                    GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Warning: content node can't be found");
+                    generalLogger.Log(LogLevel.Warning, anchor.Id, "Warning: Content node can't be found");
                     return;
                 }
                 if (node.InnerText.Length == 0)
                 {
-                    GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Warning: Content empty, manually interferce maybe needed");
+                    generalLogger.Log(LogLevel.Warning, anchor.Id, "Warning: Content empty, manually interferce maybe needed");
                     return;
                 }
-                FetchAnchorContent(anchor, node, dir);
+                ExtractAnchorContent(anchor, node, dir);
                 //}
             }
             catch (Exception e)
             {
-                GeneralLogger.Instance().Log(LogLevel.Error, anchor.Id, "[Error] Exception occurred when fetching {0}: {1}", anchor.AbsoluteUrl, e);
+                generalLogger.Log(LogLevel.Error, anchor.Id, "[Error] Exception occurred when fetching {0}: {1}", anchor.AbsoluteUrl, e);
             }
         }
 
-        void FetchText(string filePath, HtmlNode node, Anchor anchor)
+        void ExtractText(string filePath, HtmlNode node, Anchor anchor)
         {
             using (StreamWriter writer = new StreamWriter(filePath))
             {
@@ -257,7 +262,7 @@ namespace FetcherShop.Fetchers
             FileInfo info = new FileInfo(filePath);
             if (info.Length == 0)
             {
-                GeneralLogger.Instance().Log(LogLevel.Warning, anchor.Id, "Literature Warning: {0} empty for {1}", anchor.AnchorText, anchor.AbsoluteUrl);
+                generalLogger.Log(LogLevel.Warning, anchor.Id, "Literature Warning: {0} empty for {1}", anchor.AnchorText, anchor.AbsoluteUrl);
             }
         }
 

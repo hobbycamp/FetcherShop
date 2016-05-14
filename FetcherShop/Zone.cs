@@ -22,12 +22,12 @@ namespace FetcherShop
                 pageMainUrl += "/";
             }
 
-            pageMainUrl += ("html/" + Name);
+            pageMainUrl += Name;
             if (!pageMainUrl.EndsWith("/"))
             {
                 pageMainUrl += "/";
             }
-            pageMainUrl += "index.html";
+            pageMainUrl += this.RelativeUrl;
 
             return pageMainUrl; 
         }
@@ -39,18 +39,20 @@ namespace FetcherShop
         public bool PreFetch()
         {
             string pageMainUrl = GeneratePageMainUrl();
-            const string mainDivXPath = "/html/body/div[contains(@class, 'main')]";
-            const string endPageXPath = ".//a[contains(text(), '末页')]";
+            Util.UpdateServicePointConnectionLimit(pageMainUrl);
+
+            const string pageDivPath = "/html/body//div[contains(@class, 'page')]";
+            const string endPageXPath = ".//a[contains(text(), '尾页')]";
             try
             {
                 HtmlDocument doc = Util.GetHtmlDocument(pageMainUrl);
-                HtmlNode mainNode = doc.DocumentNode.SelectSingleNode(mainDivXPath);
-                if (mainNode == null)
+                HtmlNode pageNode = doc.DocumentNode.SelectSingleNode(pageDivPath);
+                if (pageNode == null)
                 {
                     throw new InvalidOperationException("Main div element cound not be found");
                 }
 
-                HtmlNode node = mainNode.SelectNodes(endPageXPath).FirstOrDefault();
+                HtmlNode node = pageNode.SelectNodes(endPageXPath).FirstOrDefault();
                 if (node == null)
                 {
                     throw new InvalidOperationException("Can't find the end page number");
@@ -95,12 +97,12 @@ namespace FetcherShop
                 pageUrl += "/";
             }
 
-            pageUrl += ("html/" + Name);
-            if (!pageUrl.EndsWith("/"))
+            pageUrl = (pageUrl + PageUrlPrefix.TrimStart('/') + i + ".html");
+            if (1 == i)
             {
-                pageUrl += "/";
+                pageUrl = pageUrl.Replace("_" + i, string.Empty);
             }
-            return (pageUrl + PageUrlPrefix + i + ".html");
+            return pageUrl;
         }
 
 
@@ -113,7 +115,7 @@ namespace FetcherShop
         {
             try
             {
-                const string listXPath = "/html/body/div[contains(@class, 'main')]/div[@class='list']";
+                const string listXPath = "/html/body/div[contains(@class, 'main')]//ul[@class='news_list']";
                 GeneralLogger.Instance().Log(LogLevel.Information, 0, "Begin getting all the urls of the page {0}", pageUrl);
                 HtmlDocument doc = Util.GetHtmlDocument(pageUrl);
                 HtmlNode mainNode = doc.DocumentNode.SelectSingleNode(listXPath);

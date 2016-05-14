@@ -9,7 +9,7 @@ namespace FetcherShop.Fetchers
     {
         public static AbstractFetcher CreateFetcher(Zone zone)
         {
-            if (string.Compare(zone.Name, "jiatingluanlun", true) == 0)
+            if (string.Compare(zone.Name, "jiatingluanlun", true) == 0 || string.Compare(zone.Name, "xiaoshuoqu", true) == 0)
             {
                 return new JTLLFetcher(zone);
             }

@@ -160,7 +160,8 @@ namespace FetcherShop.Helpers
                 Stream stream = resp.GetResponseStream();
 
                 doc = new HtmlDocument();
-                doc.Load(stream, Encoding.GetEncoding("GB2312"));
+//                doc.Load(stream, Encoding.GetEncoding("GB2312"));
+                doc.Load(stream, Encoding.GetEncoding("UTF-8"));
                 resp.Close();
             }, url.Id, 1, 20000);
 
@@ -177,12 +178,30 @@ namespace FetcherShop.Helpers
                 Stream stream = resp.GetResponseStream();
 
                 doc = new HtmlDocument();
-                doc.Load(stream, Encoding.GetEncoding("GB2312"));
+//                doc.Load(stream, Encoding.GetEncoding("GB2312"));
+                doc.Load(stream, Encoding.GetEncoding("UTF-8"));
                 resp.Close();
             }, 0, 2, 20000);
 
             return doc;
         }
 
+        public static void UpdateServicePointConnectionLimit(string url)
+        {
+            HttpWebRequest webRequest = WebRequest.Create(new Uri(url)) as HttpWebRequest;
+
+            // The default connection limit for one service point is 2, 
+            // If the connection limit has already been set to a larger value, keep it as is.
+            webRequest.ServicePoint.ConnectionLimit = 1000;
+        }
+
+        public static int GetServicePointConnectionLimit(string url)
+        {
+            HttpWebRequest webRequest = WebRequest.Create(new Uri(url)) as HttpWebRequest;
+
+            // The default connection limit for one service point is 2, 
+            // If the connection limit has already been set to a larger value, keep it as is.
+            return webRequest.ServicePoint.ConnectionLimit;
+        }
     }
 }

@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <FetcherConfig>
-  <RootUrl>http://780pp.com</RootUrl>
+  <RootUrl>http://2016mg.com</RootUrl>
   <LogDirectory>D:\Downloads\btoumeiqu</LogDirectory>
   <Zones>
-      <Zone Name="btoumeiqu" RelativeUrl="html/btoumeiqu" >
+      <Zone Name="xiaoshuoqu" RelativeUrl="renqi" >
           <RunConfiguration>
               <LatestAnchorUrl></LatestAnchorUrl>
-              <OutputDirectory>D:\Downloads\btoumeiqu</OutputDirectory>
-              <LogDirectory>D:\Downloads\log\btoumeiqu</LogDirectory>
+              <OutputDirectory>D:\Downloads\renqi</OutputDirectory>
+              <LogDirectory>D:\Downloads\log\renqi</LogDirectory>
           </RunConfiguration>
       </Zone> 
   </Zones>  
